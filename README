@@ -1,29 +1,29 @@
-# AI Software Company (Autonomous Coding Team)
+#AI Software Company (Autonomous Coding Team)
 
 An autonomous, multi-agent AI software development workflow built with **LangGraph** and **FastAPI**. 
 
 This system simulates a real-world engineering team. Instead of relying on a single AI model to write an application, responsibilities are divided among specialized AI agents that collaborate to design, code, test, and review applications with minimal human intervention.
 
-## Key Features
+##Key Features
 * **Multi-Agent Orchestration:** Utilizes LangGraph to manage state and route tasks between agents.
 * **Shared Context Management:** A Global State Dictionary ensures no loss of context across long development cycles.
 * **Production-Ready Output:** Generates complete FastAPI backend structures, including Pydantic schemas, SQLAlchemy models, and modular routers.
 * **Automated QA Loop:** Built-in code review and testing loops to catch and fix errors before final output.
 
-## The AI Engineering Team
+##The AI Engineering Team
 1. **Product Manager Agent:** Analyzes user prompts and generates comprehensive software specifications.
 2. **Software Architect Agent:** Designs the database schema, folder layout, and technology stack.
 3. **Backend Developer Agent:** Writes the production-grade Python/FastAPI application code.
 4. **Tester Agent:** Generates validation checks and detects bugs (can be mocked for speed).
 5. **Code Reviewer Agent:** Performs static code analysis and security audits.
 
-## Tech Stack
+##Tech Stack
 * **AI Framework:** LangGraph, LangChain
-* **LLM Engine:** OpenAI GPT-4o / Llama 3.1 70B (via NVIDIA NIM)
+* **LLM Engine:** Llama 3.1 70B (via NVIDIA NIM)
 * **Backend:** FastAPI, Python
 * **Database:** SQLite / PostgreSQL (SQLAlchemy ORM)
 
-## Getting Started
+##Getting Started
 
 ### 1. Clone the repository
 ```bash

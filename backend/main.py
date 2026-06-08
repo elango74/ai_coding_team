@@ -44,7 +44,7 @@ async def generate_software_project(request: ProjectRequest):
     """
     Triggers the multi-agent orchestration pipeline to construct a software application autonomously.
     """
-    print(f"\n🚀 [Received Project Creation Request]: '{request.prompt}'")
+    print(f"\n [Received Project Creation Request]: '{request.prompt}'")
     
     # Initialize the default, baseline structure of our global TeamState
     initial_state = {
@@ -73,7 +73,7 @@ async def generate_software_project(request: ProjectRequest):
         )
         
     except Exception as e:
-        print(f"❌ [Graph Execution Failure]: {str(e)}")
+        print(f" [Graph Execution Failure]: {str(e)}")
         raise HTTPException(
             status_code=500, 
             detail=f"An error occurred within the agent workflow system: {str(e)}"

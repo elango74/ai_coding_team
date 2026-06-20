@@ -1,6 +1,7 @@
 # app/graph.py
 from langgraph.graph import StateGraph, END
 from typing import Dict, Any
+from app.agents import frontend_developer_agent
 
 # Import the shared state and the modified NVIDIA agents
 from app.state import TeamState
@@ -38,12 +39,14 @@ workflow.add_node("software_architect", software_architect_agent)
 workflow.add_node("backend_developer", backend_developer_agent)
 workflow.add_node("tester", tester_agent)
 workflow.add_node("code_reviewer", code_reviewer_agent)
+workflow.add_node("frontend_developer", frontend_developer_agent)
 
 # 2. Establish fixed structural sequence connections
 workflow.set_entry_point("product_manager")
 workflow.add_edge("product_manager", "software_architect")
 workflow.add_edge("software_architect", "backend_developer")
 workflow.add_edge("backend_developer", "tester")
+workflow.add_edge("code_reviewer", "frontend_developer")
 
 # 3. Inject the conditional testing edge
 # This dynamically determines whether to repeat execution or finish up.
@@ -57,7 +60,7 @@ workflow.add_conditional_edges(
 )
 
 # 4. Connect the terminal edge to exit the application cycle gracefully
-workflow.add_edge("code_reviewer", END)
+workflow.add_edge("frontend_developer", END)
 
 # Compile the workflow blueprint into a runtime engine executable
 app_graph = workflow.compile()

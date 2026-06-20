@@ -153,3 +153,45 @@ def code_reviewer_agent(state: TeamState) -> Dict[str, Any]:
     )
     
     return {"review_report": response.choices[0].message.content}
+
+# --- 6. Frontend Developer Agent Node ---
+def frontend_developer_agent(state: TeamState) -> Dict[str, Any]:
+    print("--- [Frontend Developer Agent] Writing React/Tailwind UI Code ---")
+    
+    # We pass the backend code so the frontend knows what API endpoints exist
+    backend_code_str = "\n".join(state.get('source_code', {}).keys())
+    
+    prompt = f"""
+    You are an expert Frontend React Developer. Your job is to build a beautiful, modern UI using React, Vite, and Tailwind CSS.
+    
+    Product Specification: {state.get('requirements_doc', '')}
+    Backend API Endpoints available: {backend_code_str}
+    
+    CRITICAL INSTRUCTIONS:
+    1. Create a responsive, professional UI using Tailwind CSS.
+    2. Write the necessary fetch() or axios calls to connect to the backend APIs.
+    3. You MUST respond with ONLY a valid JSON object.
+    4. DO NOT use nested dictionaries for folders. Represent folder structures using flat file paths as keys.
+    
+    Format example:
+    {{
+      "frontend_source_code": {{
+        "package.json": "...",
+        "src/App.jsx": "...",
+        "src/components/Dashboard.jsx": "...",
+        "src/index.css": "@tailwind base;\\n@tailwind components;\\n@tailwind utilities;"
+      }}
+    }}
+    """
+    
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+        temperature=0.3
+    )
+    
+    code_data = json.loads(response.choices[0].message.content)
+    final_frontend_code = code_data.get("frontend_source_code", code_data)
+    
+    return {"frontend_source_code": final_frontend_code}

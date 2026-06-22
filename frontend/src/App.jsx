@@ -116,17 +116,17 @@ function App() {
                 {/* Left Column: Simulated Directory Explorer */}
                 <div className="bg-slate-950 p-5 rounded-lg border border-slate-800 font-mono text-sm text-emerald-400 h-fit sticky top-6 shadow-inner">
                   <p className="text-slate-500 mb-4 border-b border-slate-800 pb-2">// Directory Tree</p>
-                  <p className="text-blue-400 font-bold mb-2">📁 project_root/</p>
-                  <p className="pl-4 text-slate-400 mb-1">📁 .venv/ <span className="text-xs text-slate-600 italic">(run setup)</span></p>
+                  <p className="text-blue-400 font-bold mb-2"> project_root/</p>
+                  <p className="pl-4 text-slate-400 mb-1">.venv/ <span className="text-xs text-slate-600 italic">(run setup)</span></p>
 
                   {result.source_code && typeof result.source_code === 'object' ? (
                     Object.keys(result.source_code).map((fileName) => (
                       <p key={fileName} className="pl-4 text-emerald-300 mb-1 hover:text-emerald-100 transition-colors cursor-default">
-                        📄 {fileName}
+                        {fileName}
                       </p>
                     ))
                   ) : (
-                    <p className="pl-4 text-emerald-300">📄 main.py</p>
+                    <p className="pl-4 text-emerald-300"> main.py</p>
                   )}
                 </div>
 

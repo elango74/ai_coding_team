@@ -1,8 +1,7 @@
-# app/agents.py
 import os
 import json
 from openai import OpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 
@@ -15,11 +14,10 @@ load_dotenv()
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
     api_key=os.getenv("NVIDIA_API_KEY"),
-    timeout=180.0
+    timeout=600.0  # 10 minutes to allow massive code generation
 )
 
-# The specific Llama 3 model from the NVIDIA catalog
-MODEL_NAME = "meta/llama-3.1-70b-instruct"
+MODEL_NAME = "meta/llama-3.3-70b-instruct"
 
 # --- Models for JSON Output Formatting ---
 class ArchitectureModel(BaseModel):
@@ -35,38 +33,60 @@ class TestReportModel(BaseModel):
     errors_found: bool
     summary_report: str
 
-# --- 1. Product Manager Agent Node ---
+
+# ==========================================
+# 1. PRODUCT MANAGER AGENT
+# ==========================================
 def product_manager_agent(state: TeamState) -> Dict[str, Any]:
     print("--- [Product Manager Agent] Analyzing Requirements ---")
     
     prompt = f"""
-    You are an expert Product Manager. Analyze the following user requirement and generate a comprehensive 
-    software specification document. Outline core endpoints, required features, and user scope.
+    You are an elite Product Manager. Analyze the user requirement and write a strict software specification.
     
     User Requirement: {state['user_prompt']}
+    
+    METHODOLOGY (Chain of Thought):
+    1. Identify the core user problem.
+    2. Define the minimum viable product (MVP) features needed to solve it.
+    3. Outline the specific REST API endpoints required.
+    
+    ANTI-HALLUCINATION GUARDRAILS (Chain of Verification):
+    - Verify that every feature you outline was either explicitly requested or is strictly necessary for the app to function.
+    - DO NOT invent complex secondary features (like payment gateways or auth) unless the user asked for them.
+    
+    Output a clean, highly structured Markdown document.
     """
     
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3
+        temperature=0.0
     )
     
     return {"requirements_doc": response.choices[0].message.content}
 
-# --- 2. Software Architect Agent Node ---
+
+# ==========================================
+# 2. SOFTWARE ARCHITECT AGENT
+# ==========================================
 def software_architect_agent(state: TeamState) -> Dict[str, Any]:
     print("--- [Software Architect Agent] Designing System ---")
     
     schema_json = ArchitectureModel.model_json_schema()
     
     prompt = f"""
-    You are a Software Architect. Based on the following Product Specification, design a production-level, 
-    modular system design layout.
+    You are a Principal Software Architect. Design a production-level modular system based on this spec:
     
-    Product Specification: {state['requirements_doc']}
+    Product Specification: {state.get('requirements_doc', '')}
     
-    You MUST respond with ONLY a valid JSON object matching this schema:
+    METHODOLOGY (Chain of Thought):
+    1. Determine the database schema required to support the endpoints.
+    2. Define a flat file structure for a FastAPI backend.
+    
+    ANTI-HALLUCINATION GUARDRAILS:
+    - Verify your folder structure does not use deeply nested directories. Keep it flat and simple (e.g., main.py, models.py, schemas.py).
+    
+    CRITICAL INSTRUCTION: You MUST respond with ONLY a valid JSON object matching this schema:
     {json.dumps(schema_json, indent=2)}
     """
     
@@ -74,35 +94,46 @@ def software_architect_agent(state: TeamState) -> Dict[str, Any]:
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
-        temperature=0.2
+        temperature=0.0
     )
     
-    arch_data = json.loads(response.choices[0].message.content)
-    return {"architecture_spec": arch_data}
+    return {"architecture_spec": json.loads(response.choices[0].message.content)}
 
-# --- 3. Backend Developer Agent Node ---
+
+# ==========================================
+# 3. BACKEND DEVELOPER AGENT
+# ==========================================
 def backend_developer_agent(state: TeamState) -> Dict[str, Any]:
     print("--- [Backend Developer Agent] Writing Application Code ---")
     
     folder_structure = state['architecture_spec'].get('folder_structure', [])
     db_schema = state['architecture_spec'].get('database_schema', '')
-    schema_json = CodeGenerationModel.model_json_schema()
     
     prompt = f"""
-    You are an expert Backend Developer. Write production-grade FastAPI code based on the layout.
+    You are an expert Backend Python Developer. Write production-grade FastAPI code based on this architecture.
+    
     Database Schema: {db_schema}
-    Folder Layout: {folder_structure}
+    Target Files: {folder_structure}
+    Product Spec: {state.get('requirements_doc', '')}
     
-    CRITICAL: You MUST respond with ONLY a valid JSON object matching this exact format. 
-    You must include standard project scaffolding files like 'requirements.txt' and a 'README.md' explaining how to set up the '.venv' folder.
+    METHODOLOGY (Chain of Thought):
+    1. Write schemas.py first to define data validation.
+    2. Write models.py for the database.
+    3. Write routes.py and connect schemas and models.
+    4. Write main.py to bind it all together.
+    5. Generate a comprehensive requirements.txt.
     
-    Format example:
+    ANTI-HALLUCINATION GUARDRAILS & THREATS:
+    - If you use a Python package in your code that is NOT in your requirements.txt, the server will instantly crash. Verify every single import!
+    - DO NOT use generic models like `dict` if a Pydantic schema is available.
+    - Verify that `main.py` explicitly imports the routers you created.
+    
+    CRITICAL: Respond with ONLY a valid JSON object matching this format:
     {{
       "source_code": {{
-        "requirements.txt": "fastapi\\nuvicorn\\nsqlalchemy\\npydantic",
-        "README.md": "# Setup Instructions\\n1. Run `python -m venv .venv`\\n2. Activate it\\n3. Run `pip install -r requirements.txt`",
+        "requirements.txt": "fastapi\\nuvicorn\\npydantic\\n...",
         "main.py": "from fastapi import FastAPI\\n...",
-        "models.py": "..."
+        "schemas.py": "..."
       }}
     }}
     """    
@@ -110,75 +141,128 @@ def backend_developer_agent(state: TeamState) -> Dict[str, Any]:
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
-        temperature=0.2
+        temperature=0.0
     )
     
     code_data = json.loads(response.choices[0].message.content)
-    # Check if the LLM nested it under "source_code". If not, grab the whole thing.
-    final_code = code_data.get("source_code", code_data)
-    return {"source_code": final_code}
+    return {"source_code": code_data.get("source_code", code_data)}
 
-# --- 4. Tester Agent Node ---
+
+# ==========================================
+# 4. TESTER AGENT
+# ==========================================
 def tester_agent(state: TeamState) -> Dict[str, Any]:
-    print("--- [Tester Agent] Generating and Executing Tests ---")
+    print("--- [Tester Agent] Analyzing Code and Simulating Tests ---")
     
-    # 🚨 MOCK ACTIVATED: Bypassing the LLM to prevent server timeouts.
-    # We instantly tell the system that no errors were found so it can proceed.
-    mock_report = "--- Summary ---\nAutomated testing bypassed to prevent LLM timeout. Proceeding to Code Review."
-    
-    current_iterations = state.get('iteration_count', 0) + 1
-    
-    return {
-        "test_report": mock_report,
-        "errors_found": False,
-        "iteration_count": current_iterations
-    }
-
-# --- 5. Code Reviewer Agent Node ---
-def code_reviewer_agent(state: TeamState) -> Dict[str, Any]:
-    print("--- [Code Reviewer Agent] Final Code and Security Audit ---")
-    
-    current_code_str = "\n\n".join([f"### File: {path}\n{code}" for path, code in state['source_code'].items()])
+    schema_json = TestReportModel.model_json_schema()
+    current_code_str = "\n\n".join([f"### File: {path}\n{code}" for path, code in state.get('source_code', {}).items()])
     
     prompt = f"""
-    You are a Senior Principal Code Reviewer. Audit the following finalized code for security vulnerabilities.
-    Code:
+    You are a rigorous QA Engineer. Review the backend code, simulate execution mentally, and find critical errors.
+    
+    Code to test:
     {current_code_str}
+    
+    METHODOLOGY (Chain of Thought):
+    1. Verify all Python imports exist and are correct.
+    2. Check if FastAPI routes have matching functions and parameters.
+    3. Check for undefined variables or schemas used as database models.
+       
+    ANTI-HALLUCINATION GUARDRAILS (Chain of Verification):
+    - Before you report an error, VERIFY it actually exists in the text provided.
+    - If you claim an import is missing, double-check the top of the file first.
+       
+    FEW-SHOT EXAMPLES for `errors_found`:
+    - Example A (True): "The route `/users` expects a `User` schema, but `User` is not imported from `schemas.py`. errors_found: true"
+    - Example B (False): "FastAPI is imported, routes are defined, and schemas match. errors_found: false"
+       
+    CRITICAL: Respond with ONLY a valid JSON object matching this schema:
+    {json.dumps(schema_json, indent=2)}
     """
     
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
+        response_format={"type": "json_object"},
+        temperature=0.0
+    )
+    
+    test_data = json.loads(response.choices[0].message.content)
+    current_iterations = (state.get('iteration_count') or 0) + 1
+    
+    return {
+        "test_report": test_data.get("summary_report", "Testing complete."),
+        "errors_found": test_data.get("errors_found", False),
+        "iteration_count": current_iterations
+    }
+
+
+# ==========================================
+# 5. CODE REVIEWER AGENT
+# ==========================================
+def code_reviewer_agent(state: TeamState) -> Dict[str, Any]:
+    print("--- [Code Reviewer Agent] Final Code and Security Audit ---")
+    
+    current_code_str = "\n\n".join([f"### File: {path}\n{code}" for path, code in state.get('source_code', {}).items()])
+    
+    prompt = f"""
+    You are a Senior Security Auditor. Audit the code for security vulnerabilities.
+    
+    Code:
+    {current_code_str}
+    
+    METHODOLOGY (Chain of Thought):
+    1. Scan for hardcoded secrets or API keys.
+    2. Check for missing input validation.
+    3. Evaluate error handling mechanisms.
+       
+    ANTI-HALLUCINATION GUARDRAILS (Chain of Verification):
+    - Draft your findings mentally, then VERIFY each finding against the actual code.
+    - If you claim a vulnerability exists, YOU MUST QUOTE the exact line of code. If you cannot quote it, DO NOT report it.
+       
+    If secure, state: "Audit Complete. No critical vulnerabilities found."
+    """
+    
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0
     )
     
     return {"review_report": response.choices[0].message.content}
 
-# --- 6. Frontend Developer Agent Node ---
+
+# ==========================================
+# 6. FRONTEND DEVELOPER AGENT
+# ==========================================
 def frontend_developer_agent(state: TeamState) -> Dict[str, Any]:
     print("--- [Frontend Developer Agent] Writing React/Tailwind UI Code ---")
     
-    # We pass the backend code so the frontend knows what API endpoints exist
-    backend_code_str = "\n".join(state.get('source_code', {}).keys())
+    backend_code_str = "\n\n".join([f"### {path}:\n{code}" for path, code in state.get('source_code', {}).items()])
     
     prompt = f"""
-    You are an expert Frontend React Developer. Your job is to build a beautiful, modern UI using React, Vite, and Tailwind CSS.
+    You are an expert Frontend React Developer. Build a UI using React, Vite, and Tailwind CSS.
     
     Product Specification: {state.get('requirements_doc', '')}
-    Backend API Endpoints available: {backend_code_str}
     
-    CRITICAL INSTRUCTIONS:
-    1. Create a responsive, professional UI using Tailwind CSS.
-    2. Write the necessary fetch() or axios calls to connect to the backend APIs.
-    3. You MUST respond with ONLY a valid JSON object.
-    4. DO NOT use nested dictionaries for folders. Represent folder structures using flat file paths as keys.
+    Backend Code (For API Reference):
+    {backend_code_str}
     
-    Format example:
+    METHODOLOGY (Chain of Thought):
+    1. Read the Backend Code to identify the exact API routes (e.g., GET /users, POST /books).
+    2. Design React components that map to these specific routes.
+    3. Write the necessary fetch() logic.
+    
+    ANTI-HALLUCINATION GUARDRAILS & THREATS:
+    - Review the EXACT backend code above. 
+    - DO NOT guess or invent API endpoints. Only use the ones explicitly defined in the code. If you guess an endpoint, the UI will break.
+    - DO NOT use nested dictionaries for folders. Use flat file paths (e.g., "src/App.jsx").
+    
+    CRITICAL: Respond with ONLY a valid JSON object. Example format:
     {{
       "frontend_source_code": {{
         "package.json": "...",
         "src/App.jsx": "...",
-        "src/components/Dashboard.jsx": "...",
         "src/index.css": "@tailwind base;\\n@tailwind components;\\n@tailwind utilities;"
       }}
     }}
@@ -188,10 +272,8 @@ def frontend_developer_agent(state: TeamState) -> Dict[str, Any]:
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
-        temperature=0.3
+        temperature=0.0 
     )
     
     code_data = json.loads(response.choices[0].message.content)
-    final_frontend_code = code_data.get("frontend_source_code", code_data)
-    
-    return {"frontend_source_code": final_frontend_code}
+    return {"frontend_source_code": code_data.get("frontend_source_code", code_data)}

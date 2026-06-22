@@ -51,7 +51,7 @@ function Navbar() {
             ))}
           </nav>
           <div className="hidden items-center gap-2 md:flex">
-            <a href="#workspace" className="rounded-lg px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">
+            <a href="/sign-in" className="rounded-lg px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">
               Sign In
             </a>
             <a href="#workspace" className="group inline-flex items-center gap-1.5 rounded-lg bg-gradient-brand px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]">
